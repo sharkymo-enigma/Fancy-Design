@@ -7,6 +7,7 @@ import tailwindcss from '@tailwindcss/vite'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 export default defineConfig({
+  base: '/Fancy-Design/',
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: { '@': path.resolve(__dirname, 'src') },
