@@ -1,0 +1,4 @@
+# For kb_artefacts_to_md.py (xlsx, docx, pdf -> .md)
+openpyxl>=3.0
+python-docx>=0.8.11
+pymupdf4llm>=0.0.9

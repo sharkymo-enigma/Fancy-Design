@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+
+# Build
+dist/
+build/
+*.local
+
+# Env
+.env
+.env.*
+!.env.example
+
+# Knowledge base path (machine-specific; see knowledge-base/README.md)
+.knowledge-base-path
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Vite
+app/dist/

@@ -1,0 +1,166 @@
+---
+description: Spec-driven design development – perpetual pipeline, 8 artefacts, agent workflow, KB trigger, learning protocol
+alwaysApply: true
+---
+
+# Spec-driven design development
+
+This project uses a **pragmatic spec-driven design development** approach. The spec is the single source of truth for what will be built. The workflow is **perpetual**: new knowledge automatically triggers extraction, validation, and refinement.
+
+---
+
+## Workflow overview
+
+```mermaid
+flowchart TB
+    subgraph trigger["Perpetual trigger"]
+        KBCheck["Compare knowledge-base/ vs spec/kb-manifest.md"]
+        KBCheck -->|New files| Analyst
+        KBCheck -->|No new files| UserReq["Proceed with user request"]
+    end
+
+    subgraph extraction["Extraction + validation"]
+        Analyst["Analyst agent<br/>KB → extract for 8 artefacts"]
+        Analyst --> UXVal["UX agent validates<br/>scope, KPIs, user needs"]
+        UXVal -->|Push back| Analyst
+        UXVal -->|Agreed| ReviewDoc["Review document<br/>easy to read, actionable"]
+        ReviewDoc --> UserReview{"User review"}
+        UserReview -->|Confirm| WriteSpec["Write to spec/<br/>Update kb-manifest"]
+        UserReview -->|Correct| Analyst
+    end
+
+    subgraph pockets["Pocket subagents (dynamic, bidirectional)"]
+        WriteSpec --> UXDist["UX agent assesses<br/>information at hand"]
+        UXDist -->|"layout/visual"| WF["wireframe-figma-agent"]
+        UXDist -->|"screens/nav"| IA["ia-agent"]
+        UXDist -->|"tokens/components"| DS["design-system-agent"]
+        UXDist -->|"flows/edge cases"| UC["use-case-scenario-agent"]
+        UXDist -->|"copy/labels"| CD["content-design-agent"]
+        WF -->|cross-impacts| UXDist
+        IA -->|cross-impacts| UXDist
+        DS -->|cross-impacts| UXDist
+        UC -->|cross-impacts| UXDist
+        CD -->|cross-impacts| UXDist
+        UXDist --> UXScore["UX agent scores<br/>confidence per artefact"]
+        UXScore -->|"< 95% (max 3 passes)"| UXDist
+        UXScore -->|"≥ 95%"| Build
+    end
+
+    subgraph build["Build + test"]
+        Build["Auto code plan + execute"]
+        Build --> Usability["Usability testing agent<br/>roles × criteria"]
+        Usability --> Reinforce["Write to knowledge-base/<br/>auto-reinforcement.md"]
+        Reinforce --> Learn["Update agent learnings"]
+        Learn --> KBCheck
+    end
+```
+
+---
+
+## Pipeline stages
+
+| Stage | Agent(s) | Input | Output | Gate |
+|-------|---------|-------|--------|------|
+| **1. KB detection** | Rule (this file) | `knowledge-base/` vs `spec/kb-manifest.md` | New file list or "no changes" | New files → stage 2 |
+| **2. Extraction** | Analyst | KB files | Proposed artefact updates | → stage 3 |
+| **3. Validation** | UX agent | Analyst proposal + scope/KPIs | Validated proposal | UX agrees → stage 4 |
+| **4. User review** | UX agent (presents) | Review document | User confirm/correct | Confirmed → stage 5 |
+| **5. Spec write** | Analyst | Confirmed proposal | `spec/` updated, `kb-manifest` updated | → stage 6 |
+| **6. Pocket subagents** | UX agent dynamically delegates to wireframe-figma, ia, design-system, use-case-scenario, content-design subagents (via Task tool) based on information at hand | Spec artefacts | Spec artefacts refined | → stage 7 |
+| **7. Scoring** | UX agent | Refined artefacts | Confidence scores | ≥ 95% → stage 8; < 95% → stage 6 (max 3) |
+| **8. Build** | UX agent (code plan) | Spec at 95%+ | Application code | Build succeeds → stage 9 |
+| **9. Usability test** | Usability testing agent | Built code + spec | Assessment report | → stage 10 |
+| **10. Reinforce** | Usability testing agent | Findings | `knowledge-base/auto-reinforcement.md` + agent learnings | → stage 1 (next cycle) |
+
+---
+
+## The 8 UX artefacts (spec pack)
+
+All live under `spec/`:
+
+| File | Purpose |
+|------|---------|
+| `scope.md` | Product/scope — what, for whom, success criteria, in/out of scope, domain, stakeholders |
+| `roles-permissions.md` | Roles and permission matrix |
+| `flows.md` | Core user flows with steps and decision points |
+| `ia-screens.md` | Information architecture / screen list / sitemap |
+| `design-spec.md` | Design spec — tokens, components, states (Fluent 2) |
+| `key-screens.md` | Key screen specs — complex layouts, critical behaviour |
+| `data-entities.md` | Data/entity overview — entities, attributes, relationships |
+| `validation-edge-cases.md` | Edge cases, validation, empty states, permission behaviour |
+
+When editing or generating content that affects the product, update the relevant spec file(s).
+
+---
+
+## Perpetual KB trigger
+
+At the **start of every conversation**, before processing the user's request:
+
+0. **KB artefacts hook**: If the project has `scripts/kb_artefacts_to_md.py`, run it before comparing KB to manifest. Use `.venv/bin/python scripts/kb_artefacts_to_md.py` if `.venv` exists, else `python3 scripts/kb_artefacts_to_md.py`. The script converts every **.xlsx**, **.pdf**, and **.docx** in `knowledge-base/` to `.md` (same base name). Then continue with step 1.
+1. List files in `knowledge-base/` (names, sizes, modification dates).
+2. Read `spec/kb-manifest.md` (previously processed files).
+3. Compare: any file in KB that is **not in the manifest** or has a **different size/date** is "new".
+4. If new files exist → **immediately run the analyst agent** on those files. Do not ask "should I check?" — just start.
+5. If no new files → proceed with the user's request.
+
+---
+
+## Knowledge base rules
+
+- **Single knowledge base**: Only `knowledge-base/` is the KB. All findings go there.
+- **Only analyst reads KB**: No other agent reads from `knowledge-base/` for extraction. Pocket subagents and UX agent work from `spec/` only.
+- **Review before write**: Never write to spec from KB without UX validation + user confirmation.
+- **Auto-reinforcement**: The usability testing agent writes findings to `knowledge-base/auto-reinforcement.md`. This is the only agent that writes to the KB. On the next conversation start, the perpetual trigger detects it and the analyst extracts findings back into spec.
+
+---
+
+## Pocket subagent protocol
+
+Pocket agents are defined as **Cursor subagents** in `.cursor/agents/`. The UX orchestrator agent launches them via the **Task tool** with `subagent_type: "generalPurpose"`.
+
+- **No fixed order.** The UX agent decides which subagent to invoke based on the type of information it has and what gaps need filling.
+- Each subagent **writes directly** to spec artefacts (targeted edits, not full rewrites).
+- Each subagent **reads** the current spec state (shared context via spec files).
+- Each subagent **flags cross-impacts** for other subagents (bidirectional awareness).
+- The UX agent **reacts to cross-impacts**: when a subagent returns, the UX agent evaluates the cross-impacts and decides which subagent to invoke next.
+- The UX agent may invoke the **same subagent multiple times** if new information warrants it.
+- After convergence (no new cross-impacts), the UX agent **scores** and decides: re-run affected subagents or pass the gate.
+- **Maximum 3 iteration passes**. If still under 95%, UX agent reports gaps to the user and stops.
+
+---
+
+## Scoring protocol (evidence-based, trust and feedback)
+
+- UX agent scores each of the 6 design artefacts (design-spec, flows, ia-screens, key-screens, roles-permissions, validation-edge-cases) on a 0–100% scale.
+- Three lenses: **Business** (scope, KPIs, compliance), **User** (tasks, flows, roles, terminology), **Technology** (design system, components, validation, data). Scores must reflect **spec↔build alignment**: what is implemented in the app, not only what is written in the spec.
+- **Implementation audit required** when a build exists: compare routes, pages, and key components to `spec/interactive-components.md`; deduct for missing or placeholder behaviour.
+- Overall = average of the 6 scores. Each artefact's `**Confidence:**` header must include a short evidence-based reason (or reference to `spec/confidence-assessment.md`).
+- Confidence is **informational** during pocket subagent iterations. It becomes a **gate** only for the build trigger (≥ 95%). **Do not report ≥ 95% without evidence from the build**; after a build, re-score using the implementation audit so the score reflects deliverable quality and user trust.
+
+---
+
+## Agent learning protocol
+
+After each successful cycle (build + usability test):
+
+1. **Usability testing agent** writes findings to `knowledge-base/auto-reinforcement.md`.
+2. **Usability testing agent** updates the `## Learnings` section in each agent's definition file (SKILL.md for skills, `.cursor/agents/*.md` for subagents) with 1–3 bullet points of relevant findings.
+3. Learnings accumulate across cycles. Agents stay simple; knowledge grows incrementally.
+4. Do not bloat agent files. Each learning entry is 1 line with cycle number and finding.
+
+---
+
+## UI data conventions
+
+- **Synthetic but realistic**: Populate UI with domain-aligned data (from `spec/scope.md`, `spec/data-entities.md`). No "Lorem ipsum" or "Test User 1".
+- **Domain naming**: Use terminology a subject-matter expert would use. Derive from spec and KB.
+
+## Design system
+
+- **Fluent 2 (Fluent UI React v9)** per `spec/design-spec.md`. All UI uses Fluent 2 components and theme tokens.
+
+## Spec hygiene
+
+- Keep spec files in sync: changing scope updates `scope.md`; adding a flow updates `flows.md` and `ia-screens.md`.
+- Prefer updating existing files over creating new ad-hoc documents.
